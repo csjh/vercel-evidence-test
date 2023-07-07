@@ -25,7 +25,7 @@ export const load = async ({
 
 	await initDB();
 
-	await setParquetURLs(renderedFiles);
+	await setParquetURLs([...renderedFiles, '/bikes.parquet']);
 
 	return {
 		__db: {
