@@ -1,0 +1,25 @@
+{
+	"name": "@evidence-dev/duckdb",
+	"version": "1.0.0-usql.0",
+	"description": "DuckDB driver for Evidence projects",
+	"main": "index.cjs",
+	"author": "Josh Wills",
+	"license": "MIT",
+	"scripts": {
+		"test": "uvu test test.js"
+	},
+	"dependencies": {
+		"@evidence-dev/db-commons": "workspace:^",
+		"duckdb-async": "0.8.0"
+	},
+	"devDependencies": {
+		"dotenv": "^16.0.1"
+	},
+	"type": "module",
+	"evidence": {
+		"databases": [
+			"duckdb",
+			"ddb"
+		]
+	}
+}

@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  prerelease:
+    if: github.repository == 'evidence-dev/evidence'
+    name: Prerelease
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v2.2.1
+        with:
+          version: 6.23.2
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16.x
+          registry-url: 'https://registry.npmjs.org'
+          cache: pnpm
+      - name: Publish tag:next to npm registry
+        run: pnpm run release:next
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+  release:
+    # prevents this action from running on forks
+    if: github.repository == 'evidence-dev/evidence'
+    needs: prerelease # wait on pre-release before starting, to ensure @next is updated
+    name: Release
+    runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.changesets.outputs.published }}
+      publishedPackages: ${{ steps.changesets.outputs.publishedPackages }}
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+        with:
+          # This makes Actions fetch all Git history so that Changesets can generate changelogs with the correct commits
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v2.2.1
+        with:
+          version: 6.23.2
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16.x
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      # - run: pnpm build
+
+      - name: Create Release Pull Request or Publish to npm
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          # This expects you to have a script called release which does a build for your packages and calls changeset publish
+          publish: pnpm release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+  trigger-e2e-smoke-tests:
+    runs-on: ubuntu-latest
+    needs: release
+    if: (needs.release.outputs.published == true || needs.release.outputs.published == 'true')
+    steps:
+      - run: echo ${{needs.release.outputs.published}} ${{needs.release.outputs.publishedPackages}}
+      - name: Repository Dispatch to trigger E2E smoke tests
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.E2E_SMOKE_TESTS_REPO_ACCESS_PAT }}
+          repository: evidence-dev/e2e-smoke-tests
+          event-type: evidence-release
+          client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}", "source":"evidence-dev/evidence", "published": "${{ needs.release.outputs.published }}", "publishedPackages": ${{ needs.release.outputs.publishedPackages }}}'

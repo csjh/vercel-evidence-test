@@ -1,0 +1,23 @@
+.DS_Store
+node_modules
+dist
+.env
+.pnpm-debug.log
+.vscode
+.fleet
+customization/
+/packages/components
+/packages/evidence/template
+*.sqlite
+*.sqlite-journal
+
+# Ignore playright artifacts
+**/test-results/**
+**/playwright-report/**
+**/playwright/.cache/**
+.parcel-cache
+
+**/storybook-static/**
+*.log
+connection.options.yaml
+**/static/data
