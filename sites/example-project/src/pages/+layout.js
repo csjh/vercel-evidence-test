@@ -12,7 +12,7 @@ export const load = async ({
 	data: { customFormattingSettings, routeHash, renderedFiles, isUserPage, evidencemeta }
 }) => {
 	console.log("starting load function")
-	console.time("layout.js ")
+	console.time("layout.js")
 	let data = {};
 	// let SSR saturate the cache first
 	if (!building && browser && isUserPage) {
