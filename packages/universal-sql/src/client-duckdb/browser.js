@@ -51,18 +51,23 @@ export async function initDB() {
 export async function setParquetURLs(urls) {
 	if (!db) await initDB();
 
+	console.time("setParquetURLs")
 	const connection = await db.connect();
+	console.timeLog("setParquetURLs", "connected")
 
 	for (const url of urls) {
 		const table = url.split('/').at(-1).slice(0, -'.parquet'.length);
 		const file_name = `${table}.parquet`;
 		await db.registerFileURL(file_name, url, DuckDBDataProtocol.HTTP, false);
+		console.timeLog("setParquetURLs", "registered", url)
 		await connection.query(
 			`CREATE OR REPLACE VIEW ${table} AS SELECT * FROM read_parquet('${file_name}');`
 		);
+		console.timeLog("setParquetURLs", "created view", table)
 	}
 
 	await connection.close();
+	console.timeEnd("setParquetURLs")
 }
 
 /**
