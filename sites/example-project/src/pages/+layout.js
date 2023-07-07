@@ -11,6 +11,8 @@ export const load = async ({
 	fetch,
 	data: { customFormattingSettings, routeHash, renderedFiles, isUserPage, evidencemeta }
 }) => {
+	console.log("starting load function")
+	console.time("layout.js ")
 	let data = {};
 	// let SSR saturate the cache first
 	if (!building && browser && isUserPage) {
@@ -23,10 +25,15 @@ export const load = async ({
 	}
 	data.evidencemeta = evidencemeta;
 
+	console.timeLog("layout.js", "read cache done")
+
 	await initDB();
+
+	console.timeLog("layout.js", "initDB done")
 
 	await setParquetURLs([...renderedFiles, '/bikes.parquet']);
 
+	console.timeEnd("layout.js")
 	return {
 		__db: {
 			query(sql, query_name) {
