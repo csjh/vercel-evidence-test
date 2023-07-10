@@ -3,17 +3,38 @@ import {
 	tableFromIPC,
 	initDB,
 	setParquetURLs,
-	query
+	query,
+	updateSearchPath
 } from '@evidence-dev/universal-sql/client-duckdb';
+
+const database_initialization = (async () => {
+	let renderedFiles = {};
+
+	if (!browser) {
+		const { readFile } = await import('fs/promises');
+		({ renderedFiles } = JSON.parse(
+			await readFile('../../static/data/manifest.json', 'utf-8').catch(() => '{}')
+		));
+	} else {
+		const res = await fetch('/data/manifest.json');
+		if (res.ok) ({ renderedFiles } = await res.json());
+	}
+	renderedFiles.main = '/bikes.parquet';
+
+	await initDB();
+	await setParquetURLs(renderedFiles);
+	await updateSearchPath(Object.keys(renderedFiles));
+})();
 
 /** @satisfies {import("./$types").LayoutLoad} */
 export const load = async ({
 	fetch,
-	data: { customFormattingSettings, routeHash, renderedFiles, isUserPage, evidencemeta }
+	data: { customFormattingSettings, routeHash, isUserPage, evidencemeta }
 }) => {
-	console.log("starting load function")
-	console.time("layout.js")
-	let data = {};
+	await database_initialization;
+
+	const data = {};
+
 	// let SSR saturate the cache first
 	if (!building && browser && isUserPage) {
 		await Promise.all(
@@ -25,15 +46,6 @@ export const load = async ({
 	}
 	data.evidencemeta = evidencemeta;
 
-	console.timeLog("layout.js", "read cache done")
-
-	await initDB();
-
-	console.timeLog("layout.js", "initDB done")
-
-	await setParquetURLs([...renderedFiles, '/bikes.parquet']);
-
-	console.timeEnd("layout.js")
 	return {
 		__db: {
 			query(sql, query_name) {

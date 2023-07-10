@@ -8,6 +8,7 @@ import {
 import { createRequire } from 'module';
 import { resolve, dirname } from 'path';
 import { cache_for_hash } from '../cache-duckdb.js';
+
 const require = createRequire(import.meta.url);
 const DUCKDB_DIST = dirname(require.resolve('@duckdb/duckdb-wasm'));
 
@@ -15,6 +16,9 @@ export { tableFromIPC } from 'apache-arrow';
 
 /** @type {import("@duckdb/duckdb-wasm/dist/types/src/bindings/bindings_node_base").DuckDBNodeBindings} */
 let db;
+
+/** @type {import("@duckdb/duckdb-wasm/dist/types/src/bindings/connection").DuckDBConnection} */
+let connection;
 
 /**
  * Initializes the database.
@@ -40,27 +44,37 @@ export async function initDB() {
 	db = await createDuckDB(DUCKDB_BUNDLES, logger, NODE_RUNTIME);
 	await db.instantiate();
 	db.open({ query: { castBigIntToDouble: true, castTimestampToDate: true } });
+	connection = db.connect();
+}
+
+
+/**
+ * Updates the duckdb search path to include only the list of included schemas
+ * @param {string[]} schemas
+ * @returns {void}
+ */
+export function updateSearchPath(schemas) {
+	connection.query(`PRAGMA search_path='${schemas.join(',')}'`);
 }
 
 /**
  * Adds a new view to the database, pointing to the provided parquet URLs.
  *
- * @param {string[]} urls
+ * @param {Record<string, string[]>} urls
  * @returns {void}
  */
-export function setParquetURLs(urls) {
-	const connection = db.connect();
-
-	for (const url of urls) {
-		const table = url.split('/').at(-1).slice(0, -'.parquet'.length);
-		const file_name = `${table}.parquet`;
-		db.registerFileURL(file_name, `./static${url}`, DuckDBDataProtocol.NODE_FS, false);
-		connection.query(
-			`CREATE OR REPLACE VIEW ${table} AS SELECT * FROM read_parquet('${file_name}');`
-		);
+export async function setParquetURLs(urls) {
+	for (const source in urls) {
+		connection.query(`CREATE SCHEMA IF NOT EXISTS ${source};`);
+		for (const url of urls[source]) {
+			const table = url.split('/').at(-1).slice(0, -'.parquet'.length);
+			const file_name = `${table}.parquet`;
+			db.registerFileURL(file_name, `./static${url}`, DuckDBDataProtocol.NODE_FS, false);
+			connection.query(
+				`CREATE OR REPLACE VIEW ${source}.${table} AS SELECT * FROM read_parquet('${file_name}');`
+			);
+		}
 	}
-
-	connection.close();
 }
 
 /**
@@ -71,9 +85,7 @@ export function setParquetURLs(urls) {
  * @returns {import('apache-arrow').Table | null}
  */
 export function query(sql, cache_options) {
-	const connection = db.connect();
 	const res = connection.query(sql);
-	connection.close();
 
 	if (cache_options) {
 		cache_for_hash(cache_options.route_hash, sql, cache_options.query_name, res);

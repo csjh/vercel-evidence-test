@@ -11,6 +11,9 @@ export { tableFromIPC } from 'apache-arrow';
 /** @type {import("@duckdb/duckdb-wasm").AsyncDuckDB} */
 let db;
 
+/** @type {import("@duckdb/duckdb-wasm").AsyncDuckDBConnection} */
+let connection;
+
 /**
  * Initializes the database.
  *
@@ -40,34 +43,40 @@ export async function initDB() {
 	db = new AsyncDuckDB(logger, worker);
 	await db.instantiate(DUCKDB_CONFIG.mainModule);
 	await db.open({ query: { castBigIntToDouble: true, castTimestampToDate: true } });
+	connection = await db.connect();
+}
+
+/**
+ * Updates the duckdb search path to include only the list of included schemas
+ * @param {string[]} schemas
+ * @returns {void}
+ */
+export async function updateSearchPath(schemas) {
+	if (!db) await initDB();
+
+	await connection.query(`PRAGMA search_path='${schemas.join(',')}'`);
 }
 
 /**
  * Adds a new view to the database, pointing to the provided parquet URL.
  *
- * @param {string[]} urls
+ * @param {Record<string, string[]>} urls
  * @returns {Promise<void>}
  */
 export async function setParquetURLs(urls) {
 	if (!db) await initDB();
 
-	console.time("setParquetURLs")
-	const connection = await db.connect();
-	console.timeLog("setParquetURLs", "connected")
-
-	for (const url of urls) {
-		const table = url.split('/').at(-1).slice(0, -'.parquet'.length);
-		const file_name = `${table}.parquet`;
-		await db.registerFileURL(file_name, url, DuckDBDataProtocol.HTTP, false);
-		console.timeLog("setParquetURLs", "registered", url)
-		await connection.query(
-			`CREATE OR REPLACE VIEW ${table} AS SELECT * FROM read_parquet('${file_name}');`
-		);
-		console.timeLog("setParquetURLs", "created view", table)
+	for (const source in urls) {
+		await connection.query(`CREATE SCHEMA IF NOT EXISTS ${source};`);
+		for (const url of urls[source]) {
+			const table = url.split('/').at(-1).slice(0, -'.parquet'.length);
+			const file_name = `${table}.parquet`;
+			await db.registerFileURL(file_name, url, DuckDBDataProtocol.HTTP, false);
+			await connection.query(
+				`CREATE OR REPLACE VIEW ${source}.${table} AS SELECT * FROM read_parquet('${file_name}');`
+			);
+		}
 	}
-
-	await connection.close();
-	console.timeEnd("setParquetURLs")
 }
 
 /**
@@ -79,9 +88,7 @@ export async function setParquetURLs(urls) {
 export async function query(sql) {
 	if (!db) await initDB();
 
-	const connection = await db.connect();
 	const res = await connection.query(sql).then(arrowTableToJSON);
-	await connection.close();
 
 	return res;
 }
