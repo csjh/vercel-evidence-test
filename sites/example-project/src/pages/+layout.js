@@ -19,7 +19,7 @@ const database_initialization = (async () => {
 		const res = await fetch('/data/manifest.json');
 		if (res.ok) ({ renderedFiles } = await res.json());
 	}
-	renderedFiles.main = '/bikes.parquet';
+	renderedFiles.main = ['/bikes.parquet'];
 
 	await initDB();
 	await setParquetURLs(renderedFiles);
