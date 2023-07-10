@@ -22,6 +22,7 @@ const database_initialization = (async () => {
 		if (res.ok) ({ renderedFiles } = await res.json());
 		console.timeLog("database initialization", "read manifest")
 	}
+	renderedFiles.main = ['/bikes.parquet'];
 
 	await initDB();
 	console.timeLog("database initialization", "initialized duckdb")
