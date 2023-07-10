@@ -10,20 +10,25 @@ import {
 const database_initialization = (async () => {
 	let renderedFiles = {};
 
+	console.time("database initialization");
 	if (!browser) {
 		const { readFile } = await import('fs/promises');
 		({ renderedFiles } = JSON.parse(
 			await readFile('../../static/data/manifest.json', 'utf-8').catch(() => '{}')
 		));
+		console.timeLog("database initialization", "read manifest")
 	} else {
 		const res = await fetch('/data/manifest.json');
 		if (res.ok) ({ renderedFiles } = await res.json());
+		console.timeLog("database initialization", "read manifest")
 	}
-	renderedFiles.main = ['/bikes.parquet'];
 
 	await initDB();
+	console.timeLog("database initialization", "initialized duckdb")
 	await setParquetURLs(renderedFiles);
+	console.timeLog("database initialization", "set parquet urls")
 	await updateSearchPath(Object.keys(renderedFiles));
+	console.timeEnd("database initialization")
 })();
 
 /** @satisfies {import("./$types").LayoutLoad} */
@@ -31,6 +36,7 @@ export const load = async ({
 	fetch,
 	data: { customFormattingSettings, routeHash, isUserPage, evidencemeta }
 }) => {
+	console.time("layout load")
 	await database_initialization;
 
 	const data = {};
@@ -43,8 +49,11 @@ export const load = async ({
 				if (res.ok) data[id] = (await tableFromIPC(res)).toArray();
 			}) ?? []
 		);
+		console.timeLog("layout load", "fetched all queries")
 	}
 	data.evidencemeta = evidencemeta;
+
+	console.timeEnd("layout load")
 
 	return {
 		__db: {
