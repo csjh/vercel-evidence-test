@@ -48,7 +48,9 @@ export async function buildParquetFromResultSet(columns, data) {
 
 	const t = tableFromArrays(Object.fromEntries(m));
 
-	const writerProperties = new WriterPropertiesBuilder().setCompression(Compression.ZSTD).build();
+	const writerProperties = new WriterPropertiesBuilder()
+        .setMaxRowGroupSize(2048)
+        .setCompression(Compression.ZSTD).build();
 
 	const IPC = tableToIPC(t, 'stream');
 
